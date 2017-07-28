@@ -1,0 +1,95 @@
+"""
+@version: 
+@author: Z-Q
+@software: PyCharm Community Edition
+@file: finally.py
+@time: 2017/7/28 9:49
+"""
+#获取首页的url，之后从第一页获取别的页码的url，之后一起解析
+import requests
+from bs4 import BeautifulSoup
+import threading
+import os
+
+#解析url，并返回soup对象
+def jiexi(url):
+	res = requests.get(url)
+	soup = BeautifulSoup(res.text, 'html.parser')
+	return soup
+
+#将所有的url汇聚到一个list中
+def all_htmls(html):
+	soup_all_list = []     #创建空列表，用于存放url地址
+	soup_all_list.append(html)  #添加首地址
+	soup1 = jiexi(html)
+	soup_find_class = soup1.find('div', attrs={'class': 'paginator'})
+	for href in soup_find_class.find_all('a'):  #发现所有a标签,用于寻找剩下的url网址
+		href_we_need = href.get('href')
+		href_next = html.split('?')[0] + href_we_need
+		soup_all_list.append(href_next)
+	return soup_all_list       #返回url列表
+
+#获取排行榜，并写入一个txt文件中
+def get_Rank(url_list):
+	count = 1
+	all_text = ''
+	for url_from_list in url_list:
+		soup_jieguo = jiexi(url_from_list)
+		class1 = soup_jieguo.find('ol',attrs={'class': 'grid_view'})
+		for li in class1.find_all('li'):
+			title = li.find_all('span', attrs={'class': 'title'})[0].text
+			other = li.find_all('span', attrs={'class': 'other'})[0].text
+			#playable = li.find('span',attrs={'class': 'playable'}).text
+			try:
+				playable = li.find('span',attrs={'class': 'playable'}).text
+			except:
+				playable = '[不可播放]'
+			text = 'TOP %s :' % count + title + other + playable
+			count += 1
+			#list_we_need.append(text)
+			all_text = all_text + text + '\n'
+	with open('豆瓣电影排行榜.txt', 'w', encoding='utf-8') as f:
+		f.write(all_text)
+	print('Rank list has been Done!')
+	return 0
+
+#在当前目录下建立一个新目录，用于存放图片
+def make_new_dir():
+	now_path = os.getcwd()
+	os.mkdir(now_path + '\pictures')
+	img_path = now_path + '\pictures'
+	return img_path
+#获取所有图片,并写入pictures文件夹中
+def get_pic(url_list):
+	try:    #创建新文件夹
+		new_dir = make_new_dir()
+	except: #如果存在名为pictures的文件夹，则不用新建了
+		new_dir = os.getcwd() + '\pictures'
+	count = 0   #排名
+	for url in url_list:    #遍历url_list
+		soup2 = jiexi(url)
+		for img in soup2.find_all('div', attrs={'class': 'pic'}):
+			count += 1
+			alt = img.find('img').get('alt')
+			src_webp = img.find('img').get('src')
+			img = requests.get(src_webp)
+			rank = 'TOP{}： '.format(count)   #不能出现英文冒号(真TM坑爹)
+			path = new_dir + '\\' + rank + alt + '.jpg'
+			#print(path)
+			with open(path, 'wb') as f:
+				f.write(img.content)
+	print('Pictures had been Downloaded!')
+
+def main(url):
+	html_list = all_htmls(url)
+	#get_Rank(html_list)
+	get_pic(html_list)
+	#threading_lock.release()
+
+if __name__ == '__main__':
+	#threading_lock = threading.BoundedSemaphore(value=10)
+	url = 'https://movie.douban.com/top250?start=0&filter='
+	main(url)
+	#threading_lock.acquire()
+	#t = threading.Thread(target=main, args=url)
+	#t.start()
